@@ -13,9 +13,11 @@
 ### Fixed
 
 - **[BUG] 瀏覽器快取導致舊模型端點 `gemini-2.5-flash-preview-09-2025` 持續被呼叫（HTTP 404）**
-  - 根本原因：`file://` 協議下 `Cache-Control` meta tag 無效，瀏覽器仍執行快取的舊版 JS。
-  - 修復方式：將模型名稱從 JS hardcode 改為從 `<meta name="gemini-model">` 動態讀取。即使 JS 被快取，只要 HTML 有更新，模型名稱就會是正確值。
-  - 新增 `<meta name="app-version" content="1.1.0">` 供版本追蹤。
+  - 根本原因：`file://` 協議下 `Cache-Control` meta tag 無效，且 `Ctrl+Shift+R` 對本地檔案無效，瀏覽器仍執行快取的舊版 JS。
+  - 修復方式（三層防護）：
+    1. `<meta name="gemini-model">` — 模型名稱從 HTML 讀取，JS 不再 hardcode。
+    2. `<html data-version="1.1.1">` — HTML 根節點標記版本號。
+    3. 版本守衛 inline script — 頁面載入最早期比對 `sessionStorage` 版本，若不符立即執行 `window.location.reload(true)` 強制重新載入，確保舊快取自動失效。
 
 ---
 
