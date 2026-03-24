@@ -284,6 +284,16 @@
       lucide.createIcons();
     }
 
+    // --- swap 備用景點池 ---
+    const swapFallbackPool = [
+      { name: '隱藏版咖啡廳', type: 'cafe', duration: '1小時', rating: '4.5', desc: '當地人推薦的特色咖啡廳。', tips: [{ text: '招牌飲品必點', category: 'info' }] },
+      { name: '傳統市集探索', type: 'shopping', duration: '1.5小時', rating: '4.4', desc: '充滿在地風情的傳統市場。', tips: [{ text: '建議攜帶現金', category: 'warning' }] },
+      { name: '城市觀景公園', type: 'nature', duration: '1小時', rating: '4.6', desc: '俯瞰城市全景的絕佳地點。', tips: [{ text: '日落時分最美', category: 'info' }] },
+      { name: '在地藝術博物館', type: 'culture', duration: '2小時', rating: '4.7', desc: '展示當地歷史與藝術的博物館。', tips: [{ text: '需購票入場', category: 'ticket' }] },
+      { name: '特色伴手禮商店', type: 'shopping', duration: '1小時', rating: '4.3', desc: '精選在地特產與紀念品。', tips: [] },
+      { name: '網紅打卡景點', type: 'sightseeing', duration: '1小時', rating: '4.5', desc: '社群媒體熱門拍照地點。', tips: [{ text: '假日人潮較多', category: 'warning' }] },
+    ];
+
     // --- AI 與 Fallback ---
     async function handleGenerate(e) {
       e.preventDefault();
@@ -292,7 +302,7 @@
       localStorage.setItem('gemini_api_key', apiKeyInput); // 儲存金鑰
 
       state.formData.destination = document.getElementById('input-destination').value;
-      state.formData.days = document.getElementById('input-days').value;
+      state.formData.days = parseInt(document.getElementById('input-days').value) || 3;
       state.formData.partySize = document.getElementById('input-partySize').value;
       
       showLoading();
@@ -341,7 +351,7 @@
     }
 
     async function callGeminiAPI(data, key) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
       const fixedDesc = data.fixedEvents.length > 0 ? data.fixedEvents.map(e => `第${e.day}天${e.time}有不可變動行程：「${e.name}」`).join('；') : '無';
       const promptText = `
         你是一位極度專業的旅遊規劃師。請使用 Google Search 搜尋真實資料，為「${data.destination}」規劃 ${data.days} 天行程。以繁體中文 (zh-TW) 回覆。
@@ -399,7 +409,7 @@
           ...day,
           activities: (day.activities || []).map(act => ({
             ...act,
-            instanceId: act.id || `act-${Math.random().toString(36).substr(2, 9)}`,
+            instanceId: (act.instanceId && act.instanceId !== '') ? act.instanceId : (act.id || `act-${Math.random().toString(36).substr(2, 9)}`),
             icon: iconMap[act.type] || iconMap.default,
             // 確保有經緯度，否則賦予預設
             lat: typeof act.lat === 'number' ? act.lat : fallbackBaseLat + (Math.random()-0.5)*0.05,
@@ -580,8 +590,8 @@
       });
       document.getElementById('timeline-container').innerHTML = timeHtml;
 
-      // 更新地圖標記
-      updateMapMarkers();
+      // 更新地圖標記 (僅在地圖已初始化時執行，避免重複呼叫)
+      if (leafletMap) updateMapMarkers();
     }
 
     // --- 真實 PDF 匯出邏輯 (整合 html2pdf.js) ---
@@ -592,20 +602,20 @@
       
       const updateStep = (step) => {
         stepsDiv.innerHTML = `
-          <div class="flex items-center gap-3 text-sm font-medium ${step >= 0 ? 'text-slate-800' : 'text-slate-400'}">
-            ${step > 0 ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : '<div class="w-5 h-5 border-2 border-slate-300 rounded-full"></div>'} 擷取行程時間軸佈局
-          </div>
           <div class="flex items-center gap-3 text-sm font-medium ${step >= 1 ? 'text-slate-800' : 'text-slate-400'}">
-            ${step > 1 ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : '<div class="w-5 h-5 border-2 border-slate-300 rounded-full"></div>'} 轉換為高畫質圖片
+            ${step > 1 ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : '<div class="w-5 h-5 border-2 border-slate-300 rounded-full animate-spin border-t-transparent"></div>'} 擷取行程時間軸佈局
           </div>
           <div class="flex items-center gap-3 text-sm font-medium ${step >= 2 ? 'text-slate-800' : 'text-slate-400'}">
-            ${step > 2 ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : '<div class="w-5 h-5 border-2 border-slate-300 rounded-full"></div>'} 封裝並下載 PDF
+            ${step > 2 ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : step === 2 ? '<div class="w-5 h-5 border-2 border-slate-300 rounded-full animate-spin border-t-transparent"></div>' : '<div class="w-5 h-5 border-2 border-slate-200 rounded-full"></div>'} 轉換為高畫質圖片
+          </div>
+          <div class="flex items-center gap-3 text-sm font-medium ${step >= 3 ? 'text-slate-800' : 'text-slate-400'}">
+            ${step > 3 ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : step === 3 ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : '<div class="w-5 h-5 border-2 border-slate-200 rounded-full"></div>'} 封裝並下載 PDF
           </div>
         `;
         lucide.createIcons();
       };
 
-      updateStep(0);
+      updateStep(1);
       await delay(500);
       
       // 設定 PDF 選項
@@ -619,12 +629,12 @@
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      updateStep(1);
+      updateStep(2);
       
       // 執行轉換 (利用 html2pdf.js)
       try {
         await html2pdf().set(opt).from(element).save();
-        updateStep(2);
+        updateStep(3);
         await delay(800);
       } catch (err) {
         console.error("PDF 匯出失敗", err);
