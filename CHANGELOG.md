@@ -8,6 +8,17 @@
 
 ---
 
+## [1.3.1] - 2026-03-24
+
+### Fixed
+
+- **[BUG] `swapActivity` 忽略 `state.swapPool`，「換一個」永遠顯示假資料**
+  - 根本原因：`swapActivity` 從未實作 `state.swapPool` 讀取邏輯，直接從整個 `swapFallbackPool` 隨機抽取，無類型過濾、無重複排除。
+  - 修復方式：重寫 `swapActivity` 核心邏輯——優先從 `state.swapPool[activity.type]` 取出第一個不在當天行程中的地點並以 `splice` 移除；池為空時退回 `swapFallbackPool`（依 `type` 過濾）；兩池均耗盡時呼叫 `showExhaustedDialog()`。
+  - 保留行為：`time` 欄位繼承、`instanceId` 格式 `swap-{timestamp}`、`selectActivity` 呼叫、`handleGenerate` 重置邏輯均不受影響。
+
+---
+
 ## [1.3.0] - 2026-03-24
 
 ### Added

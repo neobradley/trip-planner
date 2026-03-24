@@ -585,19 +585,52 @@
       renderDashboard();
     }
 
+    function showExhaustedDialog() {
+      alert('目前沒有更多備選地點可供替換。');
+    }
+
     function swapActivity(dayIdx, actIdx) {
       const oldAct = state.currentTrip.schedule[dayIdx].activities[actIdx];
       // 產生附近隨機座標
       const newLat = oldAct.lat + (Math.random()-0.5)*0.02;
       const newLng = oldAct.lng + (Math.random()-0.5)*0.02;
-      
-      const randomFb = swapFallbackPool[Math.floor(Math.random() * swapFallbackPool.length)];
+
+      // 取得當天行程中已有的地點名稱集合，用於排除重複
+      const todayNames = new Set(
+        state.currentTrip.schedule[dayIdx].activities.map(a => a.name)
+      );
+
+      let candidate = null;
+
+      // 2.1 優先從 state.swapPool[oldAct.type] 取出第一個不在當天行程中的地點
+      const pool = state.swapPool[oldAct.type];
+      if (pool && pool.length > 0) {
+        const idx = pool.findIndex(item => !todayNames.has(item.name));
+        if (idx !== -1) {
+          candidate = pool.splice(idx, 1)[0];
+        }
+      }
+
+      // 2.2 退回邏輯：若 swapPool 無可用地點，從 swapFallbackPool 篩選相同 type
+      if (!candidate) {
+        const fbCandidates = swapFallbackPool.filter(item => item.type === oldAct.type && !todayNames.has(item.name));
+        if (fbCandidates.length > 0) {
+          candidate = fbCandidates[Math.floor(Math.random() * fbCandidates.length)];
+        }
+      }
+
+      // 2.3 完全耗盡處理
+      if (!candidate) {
+        showExhaustedDialog();
+        return;
+      }
+
       const newAct = {
-        ...randomFb, instanceId: `swap-${Date.now()}`, time: oldAct.time,
-        lat: newLat, lng: newLng, icon: iconMap[randomFb.type] || iconMap.default,
-        mappedTips: randomFb.tips.map(t => ({ text: t.text, ...(tipStyleMap[t.category] || tipStyleMap.default) }))
+        ...candidate, instanceId: `swap-${Date.now()}`, time: oldAct.time,
+        lat: newLat, lng: newLng, icon: iconMap[candidate.type] || iconMap.default,
+        mappedTips: (candidate.tips || []).map(t => ({ text: t.text, ...(tipStyleMap[t.category] || tipStyleMap.default) }))
       };
-      
+
       state.currentTrip.schedule[dayIdx].activities[actIdx] = newAct;
       selectActivity(newAct.instanceId);
     }
