@@ -8,6 +8,17 @@
 
 ---
 
+## [1.4.0] - 2026-03-24
+
+### Added
+
+- **地點 Google Maps 外部連結**：行程時間軸中每個活動卡片的地點名稱旁，新增可點擊的 `map-pin` 圖示連結，點擊後以新分頁開啟 Google Maps。
+- 新增 `buildMapsLink(name, lat, lng)` 輔助函式：有效座標時產生 `query=lat,lng` 格式 URL，否則退回 `encodeURIComponent(name)` 名稱搜尋，支援中文及特殊字元。
+- PDF 匯出相容性：由於 html2pdf.js 以 html2canvas 點陣化，超連結無法保留為可點擊連結；改於圖示旁以極小字顯示完整 Maps URL，確保 PDF 中仍可手動複製。
+- 新增 `tests/location-google-map-links.test.html`：5 個 fast-check 屬性測試（各 100 次迭代），驗證座標 URL 格式、名稱退回邏輯、卡片連結屬性、編輯模式不影響連結、冪等性。
+
+---
+
 ## [1.3.1] - 2026-03-24
 
 ### Fixed
