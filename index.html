@@ -226,6 +226,8 @@
         accommodations: [''], dietary: [], interests: [], fixedEvents: []
       },
       currentTrip: null,
+      originalTrip: null,
+      swapPool: {},
       selectedActivityId: null,
       isEditing: false
     };
@@ -326,6 +328,9 @@
       showLoading();
       window.scrollTo(0, 0);
       
+      state.swapPool = {};
+      state.originalTrip = null;
+
       try {
         const rawTrip = await callGeminiAPI(state.formData, apiKeyInput);
         finishGenerate(formatTripData(rawTrip));
@@ -360,8 +365,20 @@
       document.getElementById('loading-error-msg').innerText = msg;
       lucide.createIcons();
     }
+    function deepClone(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
     function finishGenerate(tripData) {
+      // 計算目的地中心點座標（平均所有活動的 lat/lng）
+      const allActs = (tripData.schedule || []).flatMap(day => day.activities || []);
+      const validActs = allActs.filter(a => typeof a.lat === 'number' && typeof a.lng === 'number');
+      const baseLat = validActs.length > 0 ? validActs.reduce((s, a) => s + a.lat, 0) / validActs.length : fallbackBaseLat;
+      const baseLng = validActs.length > 0 ? validActs.reduce((s, a) => s + a.lng, 0) / validActs.length : fallbackBaseLng;
+
       state.currentTrip = tripData;
+      state.swapPool = validateSwapPool(tripData.swapPool || {}, baseLat, baseLng);
+      state.originalTrip = deepClone(tripData);
       state.isEditing = false;
       if (tripData.schedule[0]?.activities[0]) state.selectedActivityId = tripData.schedule[0].activities[0].instanceId;
       renderDashboard();
@@ -379,9 +396,12 @@
         你是一位極度專業的旅遊規劃師。請使用 Google Search 搜尋真實資料，為「${data.destination}」規劃 ${data.days} 天行程。以繁體中文 (zh-TW) 回覆。
         約束條件：人數：${data.partySize}。飲食：${data.dietary.length ? data.dietary.join('、') : '無'}。興趣：${data.interests.length ? data.interests.join('、') : '一般'}。絕對錨點：${fixedDesc}。
         重點：請務必在 lat 與 lng 欄位給予該景點真實的 GPS 經緯度座標 (浮點數)，以便在地圖上渲染。
+        同時，請在 JSON 根層級加入一個 "swapPool" 物件，結構為以 type 為鍵、地點陣列為值。
+        每個 type 分類至少包含 3 個備選地點，每個地點須包含 name、type、time、duration、rating、desc、lat、lng、tips 欄位。
+        type 的允許值與 schedule 相同：sightseeing, shopping, dining, nature, cafe, culture, accommodation, event。
         【嚴格規定】只允許輸出一個 JSON 物件，嚴禁包含任何 Markdown 標記 (如 \`\`\`json) 或其他說明文字！直接輸出純 JSON，第一個字元必須是 {，最後一個字元必須是 }。
         強制輸出格式：
-        {"schedule":[{"day":1,"date":"Day 1","activities":[{"name":"真實地點名稱","type":"sightseeing, shopping, dining, nature, cafe, culture, accommodation, event 之一","time":"HH:MM","duration":"停留時間","rating":"評分","desc":"介紹","lat":真實緯度浮點數,"lng":真實經度浮點數,"tips":[{"text":"注意事項","category":"info, warning, ticket, success 之一"}]}]}]}
+        {"schedule":[{"day":1,"date":"Day 1","activities":[{"name":"真實地點名稱","type":"sightseeing, shopping, dining, nature, cafe, culture, accommodation, event 之一","time":"HH:MM","duration":"停留時間","rating":"評分","desc":"介紹","lat":真實緯度浮點數,"lng":真實經度浮點數,"tips":[{"text":"注意事項","category":"info, warning, ticket, success 之一"}]}]}],"swapPool":{"sightseeing":[{"name":"備選地點名稱","type":"sightseeing","time":"HH:MM","duration":"停留時間","rating":"評分","desc":"介紹","lat":真實緯度浮點數,"lng":真實經度浮點數,"tips":[]}]}}
       `;
       // 注意：google_search tool 與 responseMimeType: "application/json" 不相容，必須移除 responseMimeType
       const payload = { contents: [{ parts: [{ text: promptText }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.1 } };
@@ -442,6 +462,30 @@
           }))
         }))
       };
+    }
+
+    function validateSwapPool(rawSwapPool, baseLat, baseLng) {
+      const result = {};
+      if (!rawSwapPool || typeof rawSwapPool !== 'object') return result;
+      Object.keys(rawSwapPool).forEach(type => {
+        const items = Array.isArray(rawSwapPool[type]) ? rawSwapPool[type] : [];
+        const validated = items
+          .filter(item => item && typeof item.name === 'string' && item.name.trim() !== '')
+          .map(item => {
+            const lat = (typeof item.lat === 'number' && !isNaN(item.lat)) ? item.lat : baseLat + (Math.random() - 0.5) * 0.1;
+            const lng = (typeof item.lng === 'number' && !isNaN(item.lng)) ? item.lng : baseLng + (Math.random() - 0.5) * 0.1;
+            return {
+              ...item,
+              lat,
+              lng,
+              instanceId: `act-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              icon: iconMap[item.type] || iconMap.default,
+              mappedTips: (item.tips || []).map(t => ({ text: t.text, ...(tipStyleMap[t.category] || tipStyleMap.default) }))
+            };
+          });
+        if (validated.length > 0) result[type] = validated;
+      });
+      return result;
     }
 
     // --- 真實地圖 (Leaflet) 邏輯 ---
@@ -668,6 +712,146 @@
       }
     }
 
+  </script>
+
+  <!-- fast-check: 屬性測試函式庫 -->
+  <script src="https://cdn.jsdelivr.net/npm/fast-check/lib/bundle/fast-check.min.js"></script>
+  <script>
+    // ===== 屬性測試區塊 =====
+    // 僅在 URL 含有 ?runTests 時自動執行，或呼叫 window.runPropertyTests() 手動觸發
+
+    window.runPropertyTests = function() {
+      const baseLat = 25.0;
+      const baseLng = 121.5;
+
+      // arbitraryRawActivity：產生可能缺少 name 欄位的原始活動物件
+      const arbitraryRawActivity = fc.record({
+        name: fc.oneof(
+          fc.constant(undefined),
+          fc.constant(''),
+          fc.constant(null),
+          fc.string({ minLength: 1, maxLength: 30 })
+        ),
+        type: fc.constantFrom('sightseeing', 'dining', 'cafe', 'shopping', 'culture', 'nature', 'accommodation', 'event'),
+        lat: fc.oneof(fc.double({ min: 20, max: 30, noNaN: true }), fc.constant(undefined)),
+        lng: fc.oneof(fc.double({ min: 115, max: 130, noNaN: true }), fc.constant(undefined)),
+        duration: fc.string(),
+        rating: fc.string(),
+        desc: fc.string(),
+        tips: fc.array(fc.record({ text: fc.string(), category: fc.string() }))
+      }, { withDeletedKeys: false });
+
+      // arbitraryActivityWithoutCoords：產生有效 name 但缺少有效 lat/lng 的活動物件
+      const arbitraryActivityWithoutCoords = fc.record({
+        name: fc.string({ minLength: 1, maxLength: 30 }),
+        type: fc.constantFrom('sightseeing', 'dining', 'cafe', 'shopping', 'culture', 'nature', 'accommodation', 'event'),
+        lat: fc.oneof(fc.constant(undefined), fc.constant(null), fc.constant('invalid'), fc.constant(NaN)),
+        lng: fc.oneof(fc.constant(undefined), fc.constant(null), fc.constant('invalid'), fc.constant(NaN)),
+        duration: fc.string(),
+        rating: fc.string(),
+        desc: fc.string(),
+        tips: fc.array(fc.record({ text: fc.string(), category: fc.string() }))
+      }, { withDeletedKeys: false });
+
+      // Feature: gemini-itinerary-swap, Property 4: 無名稱地點被排除
+      // Validates: Requirements 3.3
+      try {
+        fc.assert(fc.property(
+          fc.array(arbitraryRawActivity),
+          (items) => {
+            const result = validateSwapPool({ sightseeing: items }, baseLat, baseLng);
+            return (result.sightseeing || []).every(a => typeof a.name === 'string' && a.name.length > 0);
+          }
+        ), { numRuns: 20 });
+        console.log('[PBT] Property 4 通過：無名稱地點被排除 ✓');
+      } catch (e) {
+        console.error('[PBT] Property 4 失敗：', e);
+        throw e;
+      }
+
+      // Feature: gemini-itinerary-swap, Property 5: 無效座標補全後為數字
+      // Validates: Requirements 3.2
+      try {
+        fc.assert(fc.property(
+          fc.array(arbitraryActivityWithoutCoords),
+          (items) => {
+            const result = validateSwapPool({ dining: items }, baseLat, baseLng);
+            return (result.dining || []).every(a =>
+              typeof a.lat === 'number' && typeof a.lng === 'number' &&
+              Math.abs(a.lat - baseLat) <= 0.05 && Math.abs(a.lng - baseLng) <= 0.05
+            );
+          }
+        ), { numRuns: 20 });
+        console.log('[PBT] Property 5 通過：無效座標補全後為數字 ✓');
+      } catch (e) {
+        console.error('[PBT] Property 5 失敗：', e);
+        throw e;
+      }
+
+      // arbitraryTripData：產生含有至少一個活動的行程資料
+      const arbitraryActivity = fc.record({
+        name: fc.string({ minLength: 1, maxLength: 30 }),
+        type: fc.constantFrom('sightseeing', 'dining', 'cafe', 'shopping', 'culture', 'nature', 'accommodation', 'event'),
+        time: fc.string(),
+        duration: fc.string(),
+        rating: fc.string(),
+        desc: fc.string(),
+        lat: fc.double({ min: 20, max: 30, noNaN: true }),
+        lng: fc.double({ min: 115, max: 130, noNaN: true }),
+        tips: fc.array(fc.record({ text: fc.string(), category: fc.string() }))
+      });
+      const arbitraryTripData = fc.record({
+        id: fc.string(),
+        destination: fc.string(),
+        isMock: fc.boolean(),
+        schedule: fc.array(
+          fc.record({
+            day: fc.integer({ min: 1, max: 7 }),
+            date: fc.string(),
+            activities: fc.array(arbitraryActivity, { minLength: 1 })
+          }),
+          { minLength: 1 }
+        )
+      });
+
+      // Feature: gemini-itinerary-swap, Property 6: swapPool 永遠為物件
+      // Validates: Requirements 4.3
+      try {
+        fc.assert(fc.property(
+          fc.option(fc.record({ swapPool: fc.option(fc.object()) })),
+          (tripData) => {
+            finishGenerate(tripData || {});
+            return state.swapPool !== null && state.swapPool !== undefined && typeof state.swapPool === 'object';
+          }
+        ), { numRuns: 20 });
+        console.log('[PBT] Property 6 通過：swapPool 永遠為物件 ✓');
+      } catch (e) {
+        console.error('[PBT] Property 6 失敗：', e);
+        throw e;
+      }
+
+      // Feature: gemini-itinerary-swap, Property 8: 恢復原始建議為深層複本
+      // Validates: Requirements 5.6
+      try {
+        fc.assert(fc.property(
+          arbitraryTripData,
+          (tripData) => {
+            finishGenerate(tripData);
+            const originalName = state.originalTrip.schedule[0].activities[0].name;
+            state.currentTrip.schedule[0].activities[0].name = 'MUTATED';
+            return state.originalTrip.schedule[0].activities[0].name === originalName;
+          }
+        ), { numRuns: 20 });
+        console.log('[PBT] Property 8 通過：恢復原始建議為深層複本 ✓');
+      } catch (e) {
+        console.error('[PBT] Property 8 失敗：', e);
+        throw e;
+      }
+    };
+
+    if (window.location.search.includes('runTests')) {
+      window.runPropertyTests();
+    }
   </script>
 </body>
 </html>
