@@ -10,7 +10,7 @@
 ## 呼叫配置 (Generation Config)
 
 - **Temperature:** `0.1`（極低溫度，確保 JSON 結構穩定，減少幻覺）
-- **responseMimeType:** `application/json`
+- **responseMimeType:** 不可設定（與 `google_search` tool 不相容，API 會回傳 400 錯誤）
 - **Tools:** 必須啟用 `[{ google_search: {} }]` 以獲取真實世界資訊。
 
 ## 提示詞工程 (Prompt Engineering Protocol)

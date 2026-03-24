@@ -74,7 +74,7 @@
             <input type="text" id="input-destination" placeholder="想去哪裡？例如：碧瑤, 宿霧, 京都..." class="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 outline-none transition-all font-medium" required />
           </div>
           <div class="grid grid-cols-2 gap-4">
-            <input type="number" id="input-days" min="1" max="14" value="3" class="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 outline-none font-medium" />
+            <input type="number" id="input-days" placeholder="想去幾天？" min="1" max="14" value="3" class="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 outline-none font-medium" />
             <select id="input-partySize" class="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 outline-none bg-white font-medium">
               <option value="1">單人</option>
               <option value="2" selected>雙人</option>
@@ -379,10 +379,12 @@
         你是一位極度專業的旅遊規劃師。請使用 Google Search 搜尋真實資料，為「${data.destination}」規劃 ${data.days} 天行程。以繁體中文 (zh-TW) 回覆。
         約束條件：人數：${data.partySize}。飲食：${data.dietary.length ? data.dietary.join('、') : '無'}。興趣：${data.interests.length ? data.interests.join('、') : '一般'}。絕對錨點：${fixedDesc}。
         重點：請務必在 lat 與 lng 欄位給予該景點真實的 GPS 經緯度座標 (浮點數)，以便在地圖上渲染。
-        強制輸出 JSON：
+        【嚴格規定】只允許輸出一個 JSON 物件，嚴禁包含任何 Markdown 標記 (如 \`\`\`json) 或其他說明文字！直接輸出純 JSON，第一個字元必須是 {，最後一個字元必須是 }。
+        強制輸出格式：
         {"schedule":[{"day":1,"date":"Day 1","activities":[{"name":"真實地點名稱","type":"sightseeing, shopping, dining, nature, cafe, culture, accommodation, event 之一","time":"HH:MM","duration":"停留時間","rating":"評分","desc":"介紹","lat":真實緯度浮點數,"lng":真實經度浮點數,"tips":[{"text":"注意事項","category":"info, warning, ticket, success 之一"}]}]}]}
       `;
-      const payload = { contents: [{ parts: [{ text: promptText }] }], tools: [{ google_search: {} }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } };
+      // 注意：google_search tool 與 responseMimeType: "application/json" 不相容，必須移除 responseMimeType
+      const payload = { contents: [{ parts: [{ text: promptText }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.1 } };
       let lastErr;
       for (let i = 0; i < 3; i++) {
         try {
