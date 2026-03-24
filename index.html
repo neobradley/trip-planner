@@ -378,6 +378,8 @@
 
       state.currentTrip = tripData;
       state.swapPool = validateSwapPool(tripData.swapPool || {}, baseLat, baseLng);
+      console.log('[finishGenerate] tripData.swapPool (raw):', tripData.swapPool);
+      console.log('[finishGenerate] state.swapPool (validated):', state.swapPool);
       state.originalTrip = deepClone(tripData);
       state.isEditing = false;
       if (tripData.schedule[0]?.activities[0]) state.selectedActivityId = tripData.schedule[0].activities[0].instanceId;
@@ -417,7 +419,14 @@
           if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
           const parsed = JSON.parse(text);
           if (!parsed.schedule) throw new Error("無 schedule 陣列");
-          return { id: `trip-${Date.now()}`, destination: data.destination, schedule: parsed.schedule, isMock: false };
+          console.log('[Gemini] swapPool 原始回傳:', parsed.swapPool);
+          console.log('[Gemini] swapPool keys:', parsed.swapPool ? Object.keys(parsed.swapPool) : '(無)');
+          if (parsed.swapPool) {
+            Object.entries(parsed.swapPool).forEach(([type, items]) => {
+              console.log(`[Gemini] swapPool["${type}"] 共 ${Array.isArray(items) ? items.length : 0} 筆`);
+            });
+          }
+          return { id: `trip-${Date.now()}`, destination: data.destination, schedule: parsed.schedule, swapPool: parsed.swapPool || {}, isMock: false };
         } catch(e) { lastErr = e; if (i === 2) break; await delay(1500 * (i + 1)); }
       }
       throw lastErr;
