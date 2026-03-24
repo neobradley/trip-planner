@@ -8,6 +8,26 @@
 
 ---
 
+## [1.3.0] - 2026-03-24
+
+### Added
+
+- **Gemini 備選池（Swap Pool）**：初次呼叫 Gemini API 時，於同一 Prompt 中一併請求分類備選地點，依 `type` 儲存於 `state.swapPool`，「換一個」功能改為優先從真實備選池取出地點，無需額外 API 呼叫。
+- 新增 `validateSwapPool(rawSwapPool, baseLat, baseLng)` 函式，對 Gemini 回傳的備選池進行防禦性驗證：過濾無名稱項目、補全缺失座標（目的地中心點 ±0.05°）、執行 `instanceId`／`icon`／`mappedTips` 欄位補全。
+- 新增 `showExhaustedDialog(dayIdx, actIdx)` 函式，備選池耗盡時顯示 Modal，提供「恢復原始建議」與「取消」選項。
+- 新增 `restoreOriginalActivity(dayIdx, actIdx)` 函式，從 `state.originalTrip` 深層複本還原原始活動；找不到對應 `instanceId` 時顯示錯誤提示。
+- `state` 新增 `swapPool: {}` 與 `originalTrip: null` 欄位；每次重新規劃前自動重置。
+- `generateFallback` 備用模式下自動將 `swapFallbackPool` 依 `type` 分類填入 `state.swapPool`，確保離線模式「換一個」功能可用。
+- 屬性測試（fast-check）：Property 4（無名稱地點被排除）、Property 5（無效座標補全後為數字）、Property 6（swapPool 永遠為物件）、Property 8（originalTrip 為深層複本），各執行 20 次迭代。
+
+### Changed
+
+- `swapActivity` 核心邏輯重寫：優先從 `state.swapPool[type]` 取出真實地點並移除已用項目，退回 `swapFallbackPool`，最終耗盡時呼叫 `showExhaustedDialog`。
+- `finishGenerate` 新增 `state.swapPool` 與 `state.originalTrip` 賦值邏輯。
+- `callGeminiAPI` Prompt 加入 `swapPool` 輸出要求段落。
+
+---
+
 ## [1.2.0] - 2026-03-24
 > git: `95e7f40`, `a22faf7`, `5b70fef`, `d05f2ce`
 
