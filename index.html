@@ -208,6 +208,22 @@
       default: { icon: 'info', color: 'text-slate-700 bg-slate-50 border-slate-200' } 
     };
 
+    /**
+     * 產生指向 Google Maps 的搜尋連結。
+     * @param {string} name - 地點名稱（用於備援搜尋）
+     * @param {number|undefined|null} lat - 緯度
+     * @param {number|undefined|null} lng - 經度
+     * @returns {string} Google Maps 搜尋 URL
+     */
+    function buildMapsLink(name, lat, lng) {
+      const BASE = 'https://www.google.com/maps/search/?api=1&query=';
+      if (typeof lat === 'number' && !isNaN(lat) &&
+          typeof lng === 'number' && !isNaN(lng)) {
+        return `${BASE}${lat},${lng}`;
+      }
+      return `${BASE}${encodeURIComponent(name)}`;
+    }
+
     const dietaryOptions = ['素食/蔬食', '純素食', '不吃牛', '清真認證'];
     const interestOptions = [{id: 'photography', label: '📸 攝影/取景'}, {id: 'culture', label: '🏛️ 深度人文'}, {id: 'shopping', label: '🛍️ 盡情購物'}, {id: 'relax', label: '💆 悠閒放鬆'}];
     
@@ -664,7 +680,17 @@
                   </div>
                 </div>
                 <div class="flex-1">
-                  <h4 class="font-bold text-base mb-1 cursor-pointer ${isSel ? 'text-blue-900' : isEvent ? 'text-amber-700' : 'text-slate-800'}" onclick="selectActivity('${act.instanceId}')">${act.name}</h4>
+                  <h4 class="font-bold text-base mb-1 flex items-center gap-2 ${isSel ? 'text-blue-900' : isEvent ? 'text-amber-700' : 'text-slate-800'}">
+                    <span class="cursor-pointer" onclick="selectActivity('${act.instanceId}')">${act.name}</span>
+                    <a href="${buildMapsLink(act.name, act.lat, act.lng)}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="text-slate-400 hover:text-blue-500 transition-colors flex-shrink-0"
+                       title="在 Google Maps 開啟">
+                      <i data-lucide="map-pin" class="w-4 h-4"></i>
+                      <span class="text-[8px] text-slate-300 break-all leading-none" style="font-size:7px;color:#cbd5e1;word-break:break-all;">${buildMapsLink(act.name, act.lat, act.lng)}</span>
+                    </a>
+                  </h4>
                   <p class="text-sm text-slate-500 mb-3">${act.desc || ''}</p>
                   ${tipsHtml}
                   ${editHtml}
