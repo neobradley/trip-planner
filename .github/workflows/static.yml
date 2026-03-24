@@ -44,13 +44,66 @@ jobs:
 
       - name: Notify Telegram
         if: always()
-        uses: appleboy/telegram-action@v1.0.1
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          message: |
-            📦 Deploy ${{ steps.deployment.outcome == 'success' && '✅ succeeded' || '❌ failed' }} for *${{ github.repository }}*
-            Branch: `${{ github.ref_name }}`
-            Commit: ${{ github.sha }}
-            ${{ steps.deployment.outcome == 'success' && format('🌐 Page URL: {0}', steps.deployment.outputs.page_url) || '' }}
-            Triggered by: ${{ github.actor }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          DEPLOY_OUTCOME: ${{ steps.deployment.outcome }}
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          # Dynamically fetch the latest chat ID from the bot's received messages
+          UPDATES=$(curl -sf "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?limit=1&offset=-1") || {
+            echo "::warning::Failed to reach Telegram API for getUpdates. Check TELEGRAM_BOT_TOKEN."
+            exit 0
+          }
+
+          CHAT_ID=$(echo "$UPDATES" | jq -r '
+            (.result[-1].message.chat.id //
+             .result[-1].channel_post.chat.id //
+             .result[-1].my_chat_member.chat.id //
+             empty) | tostring' 2>/dev/null || echo "")
+
+          if [ -z "$CHAT_ID" ] || [ "$CHAT_ID" = "null" ]; then
+            echo "::warning::No chat ID found in bot updates. Send at least one message to the bot, then re-run."
+            exit 0
+          fi
+
+          # Build status text
+          if [ "$DEPLOY_OUTCOME" = "success" ]; then
+            STATUS="✅ succeeded"
+            EXTRA="🌐 Page URL: ${PAGE_URL}"
+          else
+            STATUS="❌ failed"
+            EXTRA=""
+          fi
+
+          # Compose and send the notification via Telegram Bot API
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg status "$STATUS" \
+            --arg repo "$REPO" \
+            --arg branch "$BRANCH" \
+            --arg commit "$COMMIT" \
+            --arg extra "$EXTRA" \
+            --arg actor "$ACTOR" \
+            '{
+              chat_id: $chat_id,
+              parse_mode: "Markdown",
+              text: ("📦 Deploy " + $status + " for *" + $repo + "*\nBranch: `" + $branch + "`\nCommit: " + $commit + (if $extra != "" then "\n" + $extra else "" end) + "\nTriggered by: " + $actor)
+            }')
+
+          RESPONSE=$(curl -sf -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD") || {
+            echo "::warning::Failed to send Telegram notification. Check bot token and chat ID."
+            exit 0
+          }
+
+          if ! echo "$RESPONSE" | jq -e '.ok == true' > /dev/null 2>&1; then
+            echo "::warning::Telegram API returned an error: $(echo "$RESPONSE" | jq -r '.description // "unknown error"')"
+          else
+            echo "✅ Telegram notification sent successfully."
+          fi
