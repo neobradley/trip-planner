@@ -41,3 +41,16 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Notify Telegram
+        if: always()
+        uses: appleboy/telegram-action@v1.0.1
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            📦 Deploy ${{ steps.deployment.outcome == 'success' && '✅ succeeded' || '❌ failed' }} for *${{ github.repository }}*
+            Branch: `${{ github.ref_name }}`
+            Commit: ${{ github.sha }}
+            ${{ steps.deployment.outcome == 'success' && format('🌐 Page URL: {0}', steps.deployment.outputs.page_url) || '' }}
+            Triggered by: ${{ github.actor }}
