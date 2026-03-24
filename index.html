@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Gemini 實境旅遊規劃系統</title>
   
   <!-- Tailwind CSS -->
@@ -351,7 +354,10 @@
     }
 
     async function callGeminiAPI(data, key) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+      const MODEL = 'gemini-2.5-flash';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
+      // 防呆：確保不使用已廢棄的 preview 端點
+      if (MODEL.includes('preview')) throw new Error(`[Config Error] 模型 "${MODEL}" 為 preview 版本，請改用正式 GA 模型。`);
       const fixedDesc = data.fixedEvents.length > 0 ? data.fixedEvents.map(e => `第${e.day}天${e.time}有不可變動行程：「${e.name}」`).join('；') : '無';
       const promptText = `
         你是一位極度專業的旅遊規劃師。請使用 Google Search 搜尋真實資料，為「${data.destination}」規劃 ${data.days} 天行程。以繁體中文 (zh-TW) 回覆。
