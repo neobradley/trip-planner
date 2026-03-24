@@ -1,0 +1,38 @@
+# IDE - VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# IDE - JetBrains (WebStorm, IntelliJ...)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE - Kiro
+.kiro/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencies (若未來導入 npm)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output (若未來有編譯步驟)
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
